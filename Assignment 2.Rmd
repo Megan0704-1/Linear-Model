@@ -1,0 +1,497 @@
+---
+title: "Assignment 2"
+author: '108048110'
+date: "2022-10-12"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assignment 2
+
+### 1. Yuan data set
+
+```{r echo=FALSE}
+Yuan_data = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/E2.8.txt', header = TRUE)
+```
+
+| Item | Variable | Description                                          |
+|------|----------|------------------------------------------------------|
+| 1    | Output   | Per capita output in Chinese yuan                    |
+| 2    | SI       | Number of workers in the factory                     |
+| 3    | SP       | land area of the factory in square meters per worker |
+| 4    | I        | Investment in yuans per worker                       |
+
+: Chinese yuan data set for 17 factories in Shanhai.
+
+**Missing values check**
+
+```{r echo=FALSE}
+knitr::kable(summary(is.na(Yuan_data)))
+```
+
+**A quick look at the data**
+
+```{r echo=FALSE}
+knitr::kable(summary(Yuan_data))
+```
+
+**Conjectures and Suppositions**
+
+-   Output: Quantitative continuous; SI: Quantitative Discrete; SP: Quantitative continuous; I: Quantitative continuous
+
+-   Consider the relationship between the response and other explanatory variables.
+
+    -   The more workers are in a factory, the higher output per capita in yuan.
+
+-   Consider correlations between explanatory variables.
+
+    -   The more workers there are in a factory, the less place workers can have.
+
+#### a. Fit a model using least squares, express "output" in terms of other variables
+
+$$
+Output = {\beta_0} + {\beta_1}*SI + {\beta_2}*SP + {\beta_3}*I
+$$
+
+```{r echo=FALSE}
+linear_model = summary(lm(Output~SI+SP+I, data = Yuan_data))
+linear_model
+```
+
+#### b. Add $SI^2$ and $SP*I$ to obtain another model
+
+$$
+Output = {\beta_0} + {\beta_1}*SI + {\beta_2}*SP + {\beta_3}*I + {\beta_4}*SI^2 + {\beta_3}*SP*I
+$$
+
+```{r echo=FALSE}
+Yuan_data$SI_square = Yuan_data$SI*Yuan_data$SI
+Yuan_data$SP_and_I = Yuan_data$SP*Yuan_data$I
+linear_model = lm(Output~SI+SP+I+SI_square+SP_and_I, data = Yuan_data)
+summary(linear_model)
+```
+
+-   Adding more features does improve the performance of the model regardless of the feature's effect on the response.
+
+#### c. Use the model acquired from *b.*, find out the value of $SP, SI, I$ that maximize per capita $output$.
+
+-   $SP, I, SI^2$ these variables have a large negative effect on the response.
+
+```{r echo=FALSE}
+knitr::kable(sort(linear_model$fitted.values, decreasing = TRUE))
+```
+
+-   Among 17 factories, factory number 12 has the maximum output. So I dig in to find its SP, SI and I.
+
+```{r echo=FALSE}
+knitr::kable(Yuan_data[12,])
+```
+
+### 2. Prostate data set
+
+```{r echo=FALSE}
+prostate = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/prostate.txt', header=TRUE)
+```
+
+| Item | Variable | Description                                                                                                                     |
+|------|----------|---------------------------------------------------------------------------------------------------------------------------------|
+| 1    | lcavol   | $$                                                                                                                              
+                                                                                                                  log(size_{tumor})                 
+                                                                                                                  $$                                |
+| 2    | lweight  | $$                                                                                                                              
+                                                                                                                  log(weight_{tumor})               
+                                                                                                                  $$                                |
+| 3    | age      | patient age                                                                                                                     |
+| 4    | lbph     | $$                                                                                                                              
+                                                                                                                  log(Hyperplasia_{prostatic})      
+                                                                                                                  $$                                |
+| 5    | svi      | seminal vesicle invasion                                                                                                        |
+| 6    | lcp      | $$                                                                                                                              
+                                                                                                                  log(increment_{penetration})      
+                                                                                                                  $$                                |
+| 7    | gleason  | Gleason score                                                                                                                   |
+| 8    | pgg45    | percentage Gleason score                                                                                                        |
+| 9    | lpsa     | $$                                                                                                                              
+                                                                                                                  log(PSA)                          
+                                                                                                                  $$                                |
+
+: Prostate dataset
+
+-   SVI - seminal vesicle invasion:
+
+    *the presence of prostate cancer in the areolar connective tissue around the seminal vesicles and outside the prostate.*
+
+-   LCP - log capsular penetration:
+
+    *cancer that has reached the outer wall of the prostate.*
+
+-   Gleason - gleason score
+
+    *The most common system doctors use to grade prostate cancer, the grade of a cancer tells you how much the cancer cells look like normal cells. (10: very abnormal)*
+
+    Grades: low= 6; medium= 7; high= 8\~10
+
+-   lpsa - log prostate specific antigen
+
+    *The PSA test is used to monitor men after surgery or radiation therapy for prostate cancer to see if their cancer has recurred (come back).*
+
+#### a. Fit a model with $lpsa$ as the response and $lcavol$ as the predictor. Report the residual standard error and the R^2^.
+
+```{r echo=FALSE}
+linear_model = lm(lpsa~lcavol, data=prostate)
+summary(linear_model) -> lm_s
+```
+
+-   Residual standard error: 78.75%
+
+-   $R^2 = 53.94%$%
+
+```{r echo=FALSE}
+plot(predict(linear_model), prostate$lpsa, main="predicted vs. actual")
+abline(a=0, b=1, col="blue")
+```
+
+#### b. Now add $lweight$, $svi$, $lbph$, $age$, $lcp$, $pgg45$, and $gleason$ to the model *one at a time*. For each model record the residual standard error and the R^2^. Plot the trends in these two statistics and comment on any features that you find interesting.
+
+```{r echo=FALSE}
+residual = c()
+r_square = c()
+```
+
+```{r echo=FALSE}
+linear_model = lm(lpsa~lcavol+lweight, data=prostate)
+summary(linear_model) -> lm_s
+```
+
+-   Adding $lweight$
+
+    -   Residual standard error: 75.06%
+
+    -   $R^2 = 58.59%$%
+
+```{r echo=FALSE}
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+-   Adding $SVI$
+
+    -   Residual standard error: 71.68%
+
+    -   $R^2 = 62.64$%
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi+lbph, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+-   Adding $lbph$
+
+    -   Residual standard error: 71.08%
+
+    -   $R^2 = 63.66%$%
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi+lbph+age, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+-   Adding $age$
+
+    -   Residual standard error: 70.73%
+
+    -   $R^2 = 64.41$%
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi+lbph+age+lcp, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+-   Adding $lcp$
+
+    -   Residual standard error: 71.02%
+
+    -   $R^2 = 64.51$%
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi+lbph+age+lcp+pgg45, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+```
+
+-   Adding $pgg45$
+
+    -   Residual standard error: 70.48%
+
+    -   $R^2 = 65.44$%
+
+```{r echo=FALSE}
+summary(lm(lpsa~lcavol+lweight+svi+lbph+age+lcp+pgg45+gleason, data=prostate)) -> lm_s
+residual = c(residual, lm_s$sigma)
+r_square = c(r_square, lm_s$r.squared)
+par(mfrow=c(1,2))
+plot(density(linear_model$residuals), main="Residual standard error")
+
+plot(linear_model$fitted.values, linear_model$residuals)
+abline(h=0, col="red")
+```
+
+-   Adding $gleason$
+
+    -   Residual standard error: 70.84%
+
+    -   $R^2 = 65.48$%
+
+```{r echo=FALSE}
+knitr::kable(data.frame(residual, r_square), col.names = c('Residual standard error', 'R square'))
+```
+
+```{r echo=FALSE}
+par(mfrow=c(1, 3))
+plot(residual, type='o', main="Residual trend")
+plot(r_square, type='o', main="R square trend")
+residual_se = residual
+plot(residual_se, r_square, type="o", main = "relationship between two statistics")
+```
+
+-   As we can observe from the plot, residual standard error had a huge dump after adding $lweight$ to the model, and the standard error kept decreasing afterwards until I added variable $lcp$.
+
+-   Additionally, according to the professor both $R^2$ and residual standard error are two key goodness-of fit measures for regression analysis. Yet, I found that the increment of $R^2$ does not necessarily represents the reduction in residual standard error.
+
+    -   While residual standard error is defined as the standard deviation of the residuals, intuitively, I thought the smaller residual standard error was, the closer predicted values are to actual values, the better the model fits a dataset.
+
+    $$
+    e_i = y_i - \hat{y}_i\\
+    \sigma = sd{(\frac{\sum e_i^2}{n-p})}
+    $$
+
+    -   As for $R^{2}$ this value can be interpreted as proportion of variation in the response variable $lpsa$ , accounted for by the model. If the data collection process does not involved any manipulation, then larger value of $R^{2}$ usually means a better model.
+
+    $$
+    R^2 = 1 - \frac{RSS}{TSS} = 1-\frac{\sum (\hat{y_i}-y_i)^2}{\sum ( y_i-\bar{y_i})^2}
+    $$
+
+    -   After given some thoughts, for $R^2$ , it measures the percentage the regression model explain of the variance, higher $R^2$ values indicate the predicted data points are closer to the actual points. While you can simply increase the value of $R^2$ even if the added predictors are irrelevant to the response, $R^2$ values do not tell you how far exactly the data points are from the regression line. On the other hand, residual standard error signifies the distances between fitted values and actual data, these values could tell you how precise the model predictions are using the units of the predictors.
+
+    -   In conclusion, residual standard error is in the units of the predictors, as a result, it can provide a more concrete insight about your prediction, while $R^2$ does not have any units, it only measures the how much variance is explained by the model over total variance. Hence, an increase in $R^2$ values do not necessarily imply a better fit unless you have further information about the residuals.
+
+#### c. Plot $lpsa$ against $lcavol$. Fit the simple regressions of $lpsa$ on $lcavol$ and $lcavol$ on $lpsa$.
+
+```{r echo=FALSE}
+par(mfrow=c(1,3))
+plot(prostate$lcavol, prostate$lpsa)
+linear_model1 = lm(lcavol~lpsa, data=prostate)
+abline(a=linear_model1$coefficients[1]/linear_model1$coefficients[2]*-1, b=1/linear_model1$coefficients[2], col="red")
+linear_model2 = lm(lpsa~lcavol, data=prostate)
+abline(linear_model2$coefficients, col="blue")
+abline(v = mean(prostate$lcavol), h = mean(prostate$lpsa), lty=8)
+
+plot(density(linear_model1$residuals), main="fit lpsa on lcavol")
+plot(density(linear_model2$residuals), main="fit lcavol on lpsa")
+
+```
+
+-   Two lines intersect at the mean point of each variables as we can verify by the plot above.
+
+-   I found that two regression lines have the same $R^2$ values, they are both 78.75%. However, two residual standard errors are not the same, using $lpsa$ to fit response $lcavol$ has a higher standard error value.
+
+-   If we analyze the goodness of a model simply by observing , we would conclude that the two regressions are as good. However, they weren't. This discovery not only verifies my previous observations but also reminds us that R\^2 is not an objective indicator, the number of variables should also taken into account when measuring performance of regression models.
+
+### 3. Economic Data
+
+```{r include=FALSE}
+economic = readxl::read_excel('C:/Users/megan/Desktop/DSPMT/DS/Linear Model/Homework/datasets/E.9.xlsx')
+economic = economic[-1,]
+colnames(economic) <- c('Year', 'Capital 20', 'Capital 36', 'Capital 37', 'Labor 20', 'Labor 36', 'Labor 37', 'Value 20', 'Value 36', 'Value 37')
+```
+
+This dataset gives us information about features of a production function, variables including capital, labor, and value added for 3 economic sectors.
+
+The production function states the amount of product that can be obtained from every combination of factors, assuming that the most efficient available methods of production are used. While a Cobb-Douglas production function models the relationship between production output( `Value added`) and production inputs (`Capital and Labor`) it is used to calculate ratios of inputs to one another for efficient production and to estimate technological change in production methods.
+
++------+------------------------------+-----------------------------------------------------------------------------------------+
+| Item | Variable                     | Description                                                                             |
++======+==============================+=========================================================================================+
+| 1    | **Year**                     | Range from 1972 to 1986                                                                 |
++------+------------------------------+-----------------------------------------------------------------------------------------+
+| 2    | **Capital (20, 36, 37)**     | Usually represents the amount of physical capital input.                                |
+|      |                              |                                                                                         |
+|      | denoted as K                 |                                                                                         |
++------+------------------------------+-----------------------------------------------------------------------------------------+
+| 3    | **Labor (20, 36, 37)**       | Usually represents the amount of labor expended, which is typically expressed in hours. |
+|      |                              |                                                                                         |
+|      | denoted as L                 |                                                                                         |
++------+------------------------------+-----------------------------------------------------------------------------------------+
+| 4    | **Value added (20, 36, 37)** | The amount of output produced from the inputs K and L.                                  |
+|      |                              |                                                                                         |
+|      | denoted as V                 |                                                                                         |
++------+------------------------------+-----------------------------------------------------------------------------------------+
+
+: Economic data for each sectors.
+
+#### a. Consider the below model, assuming that the errors are independent, and taking logs of both sides of the above model, estimate ${\beta_1}, {\beta_2}$.
+
+$$
+V_t = {\alpha}K_t^{\beta_1}L_t^{\beta_2}{\epsilon}_t \\
+log(V_t) = log(\alpha) + \beta_1log(K_t) + \beta_2log(L_t) + log(\epsilon_t)\\
+= \beta_0 + \beta_1log(K_t) + \beta_2log(L_t) + \epsilon_t
+$$
+
+```{r echo=FALSE}
+lm(log(`Value 20`)~log(`Capital 20`)+log(`Labor 20`), data=economic) -> sector_20
+
+lm(log(`Value 36`)~log(`Capital 36`)+log(`Labor 36`), data=economic) -> sector_36
+
+lm(log(`Value 37`)~log(`Capital 37`)+log(`Labor 37`), data=economic) -> sector_37
+```
+
+```{r echo=FALSE}
+sector_20$coefficients
+```
+
+-   For food and kindred products sector, the estimated$$ \beta_1=0.2268538$$ $$\beta_2 = -1.4584782$$
+
+```{r echo=FALSE}
+sector_36$coefficients
+```
+
+-   For electrical and electronic machinery, equipment and supplies sector, the estimated$$ \beta_1=0.5260689$$ $$\beta_2 = 0.2543206$$
+
+```{r echo=FALSE}
+sector_37$coefficients
+```
+
+-   For transportation equipment sector, the estimated$$ \beta_1=0.5056509$$ $$\beta_2 = 0.8454644$$
+
+#### b. Estimate $\beta_1, \beta_2$ under where $\beta_1 + \beta_2 = 1$.
+
+-   $$
+    \beta_2 = 1-\beta_1
+    $$
+
+$$
+log(V_t) = log(\alpha) + \beta_1log(K_t) + \beta_2log(L_t) + log(\epsilon_t)
+$$
+
+$$
+log(V_t) - log(L_t) = log(\alpha) + \beta_1(log(K_t) - log(L_t)) + log(\epsilon_t)
+$$
+
+$$
+Y_t = log(\alpha) + \beta_1X_t + log(\epsilon_t)
+$$
+
+```{r echo=FALSE}
+response = log(economic$`Value 20`) - log(economic$`Labor 20`)
+predictor = log(economic$`Capital 20`) - log(economic$`Labor 20`)
+lm(response~predictor)
+```
+
+-   For food and kindred products sector, under the condition, the estimated$$ \beta_1= 1.29$$ $$\beta_2 = -0.29$$
+
+```{r echo=FALSE}
+response = log(economic$`Value 36`) - log(economic$`Labor 36`)
+predictor = log(economic$`Capital 36`) - log(economic$`Labor 36`)
+lm(response~predictor)
+```
+
+-   For electrical and electronic machinery, equipment and supplies sector, under the condition, the estimated$$ \beta_1= 0.9001$$ $$\beta_2 = 0.0999$$
+
+```{r echo=FALSE}
+response = log(economic$`Value 37`) - log(economic$`Labor 37`)
+predictor = log(economic$`Capital 37`) - log(economic$`Labor 37`)
+lm(response~predictor)
+```
+
+-   For transportation equipment sector, under the condition, the estimated$$ \beta_1= 0.009609$$ $$\beta_2 = 0.990391$$
+
+#### c. Sometimes the model $$V_t = \alpha\gamma^tK_t^{\beta_1}L_t^{\beta_2}{\epsilon_t}$$ is considered, where $\gamma_t$ is assumed to account for technological development. Estimate $$\beta_1, \beta_2$$ for this model.
+
+```{r echo=FALSE}
+economic$`log Value 20` = log(economic$`Value 20`)
+economic$`log Value 36` = log(economic$`Value 36`)
+economic$`log Value 37` = log(economic$`Value 37`)
+```
+
+$$
+log(V_t) = log(\alpha) + t*log(\gamma) + \beta_1*log(K_t) + \beta_2*log(L_t) + log(\epsilon_t)
+$$
+
+-   Since $\gamma$ is a parameter, the same $log(\gamma)$ is also a parameter, and t is a variable we know, so the model should be estimated by $\gamma, K_t, L_t$.
+
+```{r include=FALSE}
+lm(log(`Value 20`)~log(`Capital 20`) + log(`Labor 20`) + Year ,data=economic)
+```
+
+-   For food and kindred products sector, under the condition, the estimated$$ \beta_1= 0.69852$$ $$\beta_2 = -0.63414$$
+
+```{r include=FALSE}
+lm(log(`Value 36`)~log(`Capital 36`) + log(`Labor 36`) + Year, data=economic)
+```
+
+-   For electrical and electronic machinery, equipment and supplies sector, under the condition, the estimated$$ \beta_1= 0.5403$$ $$\beta_2 = 0.01317$$
+
+```{r include=FALSE}
+lm(log(`Value 37`)~log(`Capital 37`) + log(`Labor 37`) + Year, data=economic)
+```
+
+-   For transportation equipment sector, under the condition, the estimated$$ \beta_1= 7.4407$$ $$\beta_2 = 6.3788$$
+
+#### d. Estimate $\beta_1, \beta_2$ in the model in part c, under the constraint $\beta_1 + \beta_2$.
+
+-   Now the model become
+
+$$
+log(V_t) = log(\alpha) + log(\gamma)*t + \beta_1*log(K_t) + \beta_2*log(L_t) + log(\epsilon_t)
+$$
+
+$$
+log(V_t) - log(L_t) = log(\alpha) + \beta_1(log(K_t)-log(L_t)) + log(\gamma)t + log(\epsilon_t)
+$$
+
+$$
+Y_t = \beta_0 + \beta_1X_1 + log(\gamma)t + \epsilon_t
+$$
+
+```{r include=FALSE}
+response = log(economic$`Value 20`)-log(economic$`Labor 20`)
+predictor = log(economic$`Capital 20`) - log(economic$`Labor 20`)
+
+lm(response~predictor+economic$Year)
+```
+
+-   For food and kindred products sector, under the condition, the estimated$$ \beta_1= 1.192886$$ $$\beta_2 = -0.192886$$
+
+```{r include=FALSE}
+response = log(economic$`Value 36`)-log(economic$`Labor 36`)
+predictor = log(economic$`Capital 36`) - log(economic$`Labor 36`)
+
+lm(response~predictor+economic$Year)
+```
+
+-   For electrical and electronic machinery, equipment and supplies sector, under the condition, the estimated$$ \beta_1= 1.592027$$ $$\beta_2 = -0.592027$$
+
+```{r include=FALSE}
+response = log(economic$`Value 37`)-log(economic$`Labor 37`)
+predictor = log(economic$`Capital 37`) - log(economic$`Labor 37`)
+
+lm(response~predictor+economic$Year)
+```
+
+-   For transportation equipment sector, under the condition, the estimated$$ \beta_1= 0.33476$$ $$\beta_2 = 0.66524$$

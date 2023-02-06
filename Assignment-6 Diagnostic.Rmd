@@ -1,0 +1,553 @@
+---
+title: "Assignment 6"
+author: '108048110'
+date: "2022-12-09"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 6
+
+```{r include=FALSE}
+library(GGally)
+require(faraway)
+library(car)
+```
+
+## Problem 1
+
+```{r echo=FALSE}
+data1 = read.table('datasets/salary.txt', header=T)
+attach(data1)
+```
+
+### Data Overview
+
+```{r}
+summary(data1)
+ggpairs(data1)
+```
+
+**Note.** All the variables except for Age seem to be seriously right skewed.
+
+-   Transform response variable.
+
+    ```{r}
+    salary = 100*(Y84-Y83)/Y83
+    model1 = lm(salary~SHARES+REV+INC+AGE); summary(model1)
+    ```
+
+-   Check for outliers.
+
+    ```{r echo=FALSE}
+    par(mfrow=c(2,2));for(i in seq(2, 5)){plot(salary, model.matrix(model1)[,i], ylab=colnames(data1)[i+1], main = colnames(data1)[i+1])}
+    boxplot(data1)
+    ```
+
+-   Exclude i-th observation and recompute the estimates to get $\hat\beta_i\ and\ \hat\sigma_i^2$ -\> **Jacknife residuals**
+
+    ```{r echo=FALSE}
+    rjack = rstudent(model1)
+    plot(rjack, ylab="Jacknife residuals", main="Jacknife residuals")
+    ```
+
+-   Find out the chair in data that has the largest jacknife residual and compare with critical value.
+
+    ```{r echo=FALSE}
+    rjack[abs(rjack)==max(abs(rjack))]
+    ```
+
+    -   $t_i > t_{n-p-1}({\alpha/2})$
+
+        ```{r echo=FALSE}
+        qt(0.05/2,45)
+        ```
+
+    -   $t_i > t_{n-p-1}({\alpha/2n})$
+
+        ```{r echo=FALSE}
+        qt(0.05/(2*nrow(data1)), 45)
+        ```
+
+-   To conclude, we have enough evidence to reject the null hypothesis, indicating that the 9th chair is an outlier.
+
+    ```{r echo=FALSE}
+    outlier_check <- function(data, t="t"){
+        new_data = data
+        remove_list=c()
+        for(i in seq(1, nrow(data))){
+          salary = 100*(new_data$Y84-new_data$Y83)/new_data$Y83
+          model = lm(salary~SHARES+REV+INC+AGE, data=new_data)
+          rjack = rstudent(model)
+          outlier = abs(rjack[abs(rjack)==max(abs(rjack))])
+          if(t=='t'){t_normal = abs(qt(0.05/2,model$df.residual))}else{
+              t_normal = abs(qt(0.05/(2*nrow(new_data)),model$df.residual))
+          }
+          
+          if(outlier>t_normal){
+              rm_num = as.integer(names(outlier))
+              remove_list = c(remove_list, rm_num)
+              rm_num = rm_num-sum(remove_list<rm_num)
+              new_data=new_data[-rm_num,]
+          }
+        }
+        print('remove: ')
+        print(remove_list)
+        return(new_data)
+    }
+
+    data_tmp = outlier_check(data1, "t")
+    new_data = outlier_check(data1, "Bonferroni")
+    ```
+
+-   Compare t-statistic with Bonferroni critical value we can conclude that there is an outlier in the data.
+
+Residual plots after removing outliers.
+
+```{r echo=FALSE}
+salary = 100*(data_tmp$Y84-data_tmp$Y83)/data_tmp$Y83
+
+model2 = lm(salary~SHARES+REV+INC+AGE, data=data_tmp); plot(model2, which=3)
+
+salary = 100*(new_data$Y84-new_data$Y83)/new_data$Y83
+
+model3 = lm(salary~SHARES+REV+INC+AGE, data=new_data); plot(model3, which=3)
+```
+
+-   Obviously, after removing 9th observation from the data, residual appeared to be more like constant.
+
+### Do you feel the variances of the raises are equal? If not, what transformation approaches could be applied to improve matters? Make appropriate plots and give your conclusions.
+
+-   **Overall pattern**
+
+```{r echo=FALSE}
+par(mfrow=c(1, 3))
+plot(model1, which=1);plot(model1, which=2); plot(model1, which=3)
+```
+
+-   Regardless of outliers, the overall pattern do not seems to match the assumption of constant variance.
+
+-   Moreover, observed from the third plot, the scale of variance trends upward, indicating non-constant variance.
+
+-   And the reason for the non-constant variance is attribute to the large salary percentage. In other words, as the percentage of salary becomes larger, the range salary can vary tends to become larger as well.
+
+-   **Transformation**
+
+```{r}
+salary = 100*(data1$Y84-data1$Y83)/data1$Y83
+
+model1 = lm(salary~SHARES+REV+INC+AGE)
+ncvTest(model1)
+```
+
+-   Under the significance level 0.05, we have enough evidence to reject the null hypothesis, error variance changes with the level of the fitted values.
+
+-   Since there are negative values in variable *raises*, so we can not directly apply log or sqrt transform on the response. Therefore, I decided to do transformation on *raises+min(raises)+1*, such that response is positive for all observations.
+
+-   For the board range of Y, I conduct log transformation on the response and fit model2.
+
+```{r echo=FALSE}
+salary = 100*(Y84-Y83)/Y83
+raises = salary-min(salary)+1
+model2 = lm(log(raises)~SHARES+REV+INC+AGE); summary(model2)
+par(mfrow=c(2,2)); plot(model1, 1, main="model1"); plot(model2, 1, main="model2"); plot(model1, 3, main="model1"); plot(model2, 3, main="model2")
+```
+
+-   As we can observe from the plots, model2 seems to have constant variance.
+
+```{r}
+ncvTest(model2)
+```
+
+-   From non-constant variance score test, we conclude under significance level 0.05, we do not have enough evidence to reject the null hypothesis, that is, we do not reject the hypothesis of constant error variance.
+
+```{r echo=FALSE}
+detach(data1)
+```
+
+## Problem 2
+
+```{r echo=FALSE}
+data2 = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/octane.txt', header=T)
+attach(data2)
+```
+
+### Data Overview
+
+```{r}
+summary(data2)
+ggpairs(data2)
+```
+
+-   A2 and A4 have relatively smaller scale, expecting the beta of the predictors to be small as well.
+
+-   There exist a lot of blank spaces btw the relation plot in predictors and response, therefore, I suspect the dataset might have non-constant variance.
+
+### Fit a model, perform regression diagnostics, present important plots, comment on their meanings and indicate what action should be taken.
+
+-   It is acceptable to simply report the outcome of some plots without displaying them.
+
+-   Be selective on the plots you present.
+
+```{r}
+model1 = lm(rating~A1+A2+A3+A4)
+summary(model1, cor=T)
+```
+
+#### Check on Overall Patterns: variance assumptions.
+
+-   **Equal variance**
+
+```{r echo=FALSE}
+plot(model1, which=1)
+```
+
+-   The model's fitted results have a large proportion assembling in the range 90 to 93, the constant variance assumption does not seem to be seriously violated. Hence, I decided to plot the abs(residual) to obtain a clearer pattern.
+
+```{r echo=FALSE}
+plot(model1, which=3);abline(summary(lm(abs(model1$res)~model1$fitted.values)), lwd=2)
+```
+
+-   Apparently, we can observe some curvature in residual variance plot, which meet our former suspicion. We might need to conduct further transformation on the variables.
+
+-   **Normality**
+
+```{r echo=FALSE}
+plot(model1, which=2); abline(a=0, b=1, col='red')
+```
+
+-   Null plot, the normality assumption is not violated.
+
+-   **Mean curvature examination - Partial Regression Plot**
+
+```{r echo=FALSE}
+par(mfrow=c(2,2)); for(i in seq(1, 4)){ prplot(model1, i)}
+```
+
+```{r}
+data2[A1<20,]; data2[A2>6,]; data2[(A3<45 & rating>95),]; data2[(A4>2&rating>95),]
+```
+
+-   Observe from the plot, some points seem to diverge substantially from the rest of the data.
+
+-   Also, response and A3 seems to have some relationship that is not included in model1.
+
+-   Furthermore, there exist multiple influential points, which diverge significantly from the rest of the points, would affect the model, I probably need to draw half-normal plots to further check for these extreme values.
+
+#### Check on Unusual Observations
+
+-   Residuals
+
+    -   Finding the largest and smallest residual index.
+
+```{r echo=FALSE}
+sort(model1$res)[c(1, nrow(data2))]
+```
+
+![](images/Assignment6%20-%20residual%20plot%201.png){width="404"}
+
+Large residual: 21, 61
+
+-   Leverage
+
+```{r echo=FALSE}
+lev = lm.influence(model1)$hat
+knitr::kable(rbind(c(), sort(lev)[c(seq(nrow(data2), nrow(data2)-6))]))
+```
+
+![](images/Assignment6%20-%20leverage%20plot%201.png){width="404"}
+
+Large leverage: 44, 66, 71, 72, 75, 76, 77
+
+-   **Jacknife residuals**
+
+```{r echo=FALSE}
+outlier_check <- function(data, t="t"){
+    new_data = data
+    remove_list=c()
+    for(i in seq(1, nrow(data))){
+      
+      model = lm(rating~A1+A2+A3+A4, data=new_data)
+      rjack = rstudent(model)
+      outlier = abs(rjack[abs(rjack)==max(abs(rjack))])
+      if(t=='t'){t_normal = abs(qt(0.05/2,model$df.residual))}else{
+          t_normal = abs(qt(0.05/(2*nrow(new_data)),model$df.residual))
+      }
+      
+      if(outlier>t_normal){
+          rm_num = as.integer(names(outlier))
+          remove_list = c(remove_list, rm_num)
+          rm_num = rm_num-sum(remove_list<rm_num)
+          new_data=new_data[-rm_num,]
+      }
+    }
+    print('remove: ')
+    print(remove_list)
+    return(new_data)
+}
+data_tmp = outlier_check(data2, 'Bonferroni')
+new_data = outlier_check(data2, 't')
+model2 = lm(rating~A1+A2+A3+A4, data=new_data)
+```
+
+```{r echo=FALSE}
+par(mfrow=c(1, 2))
+plot(model1, which=1, main="original"); plot(model2, which=1, main="removing unusual observations")
+```
+
+-   As we can observe from the Bonferroni test result and plots, removing unusual observation does not make much difference. Hence, no outliers are indicated when there is no multiple outliers.
+
+-   **Half normal plot**
+
+    -   Look for extreme values
+
+```{r echo=FALSE}
+par(mfrow=c(1,2)); label <- row.names(data2)
+halfnorm(lev, labs=label, ylab="Leverages", main="Lev h-normal plot"); halfnorm(cooks.distance(model1), labs=label, nlab=3, ylab="Cook statistics", main="Cook h-normal plot")
+```
+
+-   Now we know for sure that the residual present a pattern of curvature and that point 75 and 76 can significantly affect the model, likewise, point 42, 73, 82 have relatively large residuals. We should modify the model.
+
+#### Transforming model
+
+```{r echo=FALSE}
+par(mfrow=c(3,2))
+for(i in seq(1,5)){
+    plot(density(data2[,i]), main=colnames(data2)[i])
+}
+```
+
+As we can see from the plot, A1 and A3 are left skewed, indicating there are a lot of large values in the variables, so I decided to perform log transformation on both variables to smooth the density curve.
+
+Also, based on the observation from mean curvature examination, I added additional variable to complex the model.
+
+-   **Test for lack of fit including point that has *rating* \> 94.**
+
+```{r}
+model1 = lm(rating~A1+A2+A3+A4)
+model2 = lm(rating~log(A1) + A2 + log(A3) + A4 + A1 * A3)
+summary(model2)
+anova(model1, model2)
+```
+
+-   we can observe from the summary table that A1\*A3 is a significant additional term.
+
+-   However, the anova test's p-value lied in the edge of significance level, it will be subjective to conclude that we should reject the null hypothesis. Hence, to be more specific, I investigated the subset with *rating* \< 94.
+
+-   **Excluding data where *rating* \> 94.**
+
+```{r echo=FALSE}
+model1 = lm(rating~A1+A2+A3+A4, subset=(rating<94))
+model2 = lm(rating~log(A1) + A2 + log(A3) + A4 + A1 * A3, subset=(rating<94))
+anova(model1, model2)
+```
+
+-   After excluding points with rating \>94 from the data, the model then suggested to reject the null hypothesis, that is, there is lack of fit.
+
+-   **Plot**
+
+```{r echo=FALSE}
+par(mfrow=c(2, 3))
+plot(model1, which=c(1,2,3), main="model1")
+plot(model2, which=c(1,2,3), main="model2")
+```
+
+-   Residual plot then suggested constant variance.
+-   Also the partial regression plot of A3 no longer appear a curvature trend.
+
+```{r}
+prplot(model1, 3); prplot(model2, 3)
+```
+
+```{r echo=FALSE}
+detach(data2)
+```
+
+## Problem 3
+
+```{r echo=FALSE}
+data3 = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/vehicle.txt', header=T)
+attach(data3)
+```
+
+### Data Overview
+
+```{r}
+summary(data3)
+ggpairs(data3)
+```
+
+|          |              |                            |
+|----------|--------------|----------------------------|
+| **Item** | **Variable** | **Description**            |
+| 1        | ACC          | acceleration               |
+| 2        | WHP          | weight-to-horsepower ratio |
+| 3        | SP           | traveling speed            |
+| 4        | G            | grade                      |
+
+: Observations on ACC of different vehicles
+
+-   G=0 implies the road was horizontal.
+-   plot suggests variables to be quantitative discrete variables.
+
+### a. Obtain the partial residual plots.
+
+```{r}
+model1 = lm(ACC~WHP+SP+G)
+summary(model1)
+```
+
+```{r echo=FALSE}
+par(mfrow=c(1, 3))
+for (i in seq(1, 3)){prplot(model1, i)}
+```
+
+### b. Obtain a good fitting model by making whatever changes you think are necessary. Obtain appropriate plots to verify that you have succeeded.
+
+-   **Check for non-constant varaince.**
+
+```{r echo=FALSE}
+ncvTest(model1)
+```
+
+-   Small p-value (\<0.05) in NCV-test, so under the significance level $\alpha=0.05$ , we reject the null hypothesis, that is, we have enough evidence to conclude the model has non-constant variance.
+-   **Check for overall pattern.**
+
+```{r echo=FALSE}
+par(mfrow=c(1, 3))
+plot(model1, which=1); plot(model1, which=2); plot(model1, which=3)
+```
+
+-   The plot on the left appears to have curvature in the model's mean of residuals.
+
+-   QQ plot in the middle indicates the normality assumption is not violated.
+
+-   **Mean curvature examination**
+
+    Refer to question a, the added variable plots of both *WHP* and *SP* are proofs of violation of the assumption of constant variance.
+
+-   Since there seems to have curvature pattern in the residual plot, I examine every variable to ensure which term should be added into the model.
+
+#### U = WHP
+
+```{r echo=FALSE}
+U = WHP^2; model2 = lm(ACC~WHP+SP+G+U); summary(model2)
+print('significant')
+```
+
+#### U = SP
+
+```{r echo=FALSE}
+U = SP^2; model2 = lm(ACC~WHP+SP+G+U); summary(model2)
+print('not significant')
+```
+
+#### U = G
+
+```{r echo=FALSE}
+U = G^2; model2 = lm(ACC~WHP+SP+G+U); summary(model2)
+print('not significant')
+```
+
+-   Hence, I planned on adding the additional variable *WHP\^2*.
+-   **Check for unusual observations.**
+
+```{r echo=FALSE}
+halfnorm(lm.influence(model1)$hat, labs=row.names(data3), ylab="Leverages")
+
+halfnorm(cooks.distance(model1), labs=row.names(data3), nlab=3, ylab="Cook statistics")
+```
+
+```{r echo=FALSE}
+outlier_check <- function(data, t="t"){
+    new_data = data
+    remove_list=c()
+    for(i in seq(1, nrow(data))){
+      
+      model = lm(ACC~WHP+SP+G, data=new_data)
+      rjack = rstudent(model)
+      outlier = abs(rjack[abs(rjack)==max(abs(rjack))])
+      if(t=='t'){t_normal = abs(qt(0.05/2,model$df.residual))}else{
+          t_normal = abs(qt(0.05/(2*nrow(new_data)),model$df.residual))
+      }
+      
+      if(outlier>t_normal){
+          rm_num = as.integer(names(outlier))
+          
+          remove_list = c(remove_list, rm_num)
+          rm_num = rm_num-sum(remove_list<rm_num)
+          
+          new_data=new_data[-rm_num,]
+      }
+    }
+    print('remove: ')
+    print(remove_list)
+    return(new_data)
+}
+data_tmp = outlier_check(data3, 'Bonferroni')
+new_data = outlier_check(data3, 't')
+model2 = lm(ACC~WHP+SP+G, data=new_data)
+```
+
+-   **Check these experiment**
+
+```{r echo=FALSE}
+data3[c(42, 38, 33, 39, 34, 35, 19),]
+```
+
+-   Many of the data measured with WHP=84.5, so I assume that the unusual results may result from the measurement equipment or driver's condition.
+-   **Deal with non-constant variance**
+    -   I think the non-constant occurs in the dataset may result from the lower bound of the WHP variable. Intuitively, the heavier the vehicle, the longer the corresponding accelerate time. However, the $lowest\ acceleration \approx 0$, the limited lower bound bounded the room for variance to vary.
+
+    -   Also, because of the obvious non-constant variance appear in partial regression plots, I perform log transformation on both *WHP* and *SP* independent variables.
+-   **Transformation**.
+
+```{r echo=FALSE}
+new_data=data3[c(-41, -32, -37),]
+U=WHP^2;model2 = lm(ACC~WHP+(log(SP))+G+U); 
+par(mfrow=c(2,2)); prplot(model1, 1); prplot(model1, 2); prplot(model2, 1); prplot(model2, 2)
+```
+
+```{r}
+plot(model2, which=3)
+ncvTest(model2)
+```
+
+-   The plot and formal test both suggest that we do not reject the hypothesis that model2 has constant variance.
+
+-   Moreover, after the transformation (adding WHP\^2 and logging SP), the original unusual observations are not regarded as outliers anymore. They no longer possess the same impact on the new fitted model.
+
+```{r}
+summary(model2)
+```
+
+-   Compared to the $R^2$ value obtain from model1, by simply transforming the mean structure, we enhance the proportion of variance interpret by the predictors.
+
+### c. Explain why we can eliminate heteroscedasticity in partial residual plots shown in question a by simply transforming the predictors.
+
+-   The data for this question gives observations on ACC of different types of vehicles. Based on high school knowledge, acceleration is the change in velocity over the change in time, in other words, it measures how fast velocity changes in meters per second squared.
+
+-   Since the equation suggest the existance of certain variable that is not included in this data (time), and the indication that underlying true model has curvature pattern, simply fitting all variable is insufficient to get a desired output.
+
+-   That is to say, model1 is too simple to fit the response, the true model is actually more complex than the fitted model. Therefore, variance that is not explained by model1 is then presented on the partial regression plots, showing heteroscedasticity.
+
+-   Accordingly, we need to achieve better fitting result by modifying the model's mean structure.
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(WHP, model1$residuals)
+plot(log(WHP), model1$residuals)
+plot(SP, model1$residuals)
+plot(log(SP), model1$residuals)
+```
+
+-   Hence, by adding additional term and transforming predictors, we made a relatively complex model, model2. The additional term explains part of the variance shown in prplot displayed in question a, thus eliminating the phenomenon of heteroscedasticity.
+
+```{r}
+detach(data3)
+```

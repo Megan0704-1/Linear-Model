@@ -1,0 +1,476 @@
+---
+title: "Assignment 7"
+author: '108048110'
+date: "2022-12-31"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 7
+
+```{r include=FALSE}
+library(GGally)
+library(lmtest) # for dwtest
+library(nlme) # for gls
+library(leaps)
+library(MASS)
+library(stats) # for step
+library(tseries) # for acf
+library(faraway) # for prplot
+library(car) # for ncvTest
+```
+
+## Problem 1
+
+Data Source: US Historical Climatology Network
+
+Data Description: Annual mean temperatures (F) in Ann Arbor.
+
+```{r echo=TRUE}
+data1 = read.table('./datasets/climatology network.txt', header=T)
+summary(data1)
+ggpairs(data1)
+attach(data1)
+```
+
+### *i.* Is there a linear trend?
+
+```{r echo=FALSE}
+model1 = lm(temp~year)
+par(mfrow=c(1,2))
+plot(year, temp); abline(model1)
+```
+
+-   The plot suggests that local mean is increasing.
+
+**Perform diagnostic over the regression model to detect potential problems and to check whether the assumptions made by the linear model are met.**
+
+```{r echo=TRUE}
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+-   The diagnostic plots show residuals in 4 different ways.
+
+    -   Residual vs Fitted
+
+        Used to check the linear relationship assumptions. The plot indicates a horizontal line, which is an indication for a linear relationship.
+
+    -   Normal QQ plot
+
+        Used to examine whether the residuals are normally distributed. The plot shows that the residual points follow the straight dashed line, which is an indication of normally distributed residuals.
+
+    -   Scale-location
+
+        Used to check the homogeneity of variance of the residuals. The plot has a horizontal line with equally spread points, which is an indication of homogeneity.
+
+    -   Residual vs. leverage
+
+        1.  Outliers
+
+        ```{r echo=FALSE}
+        cbind(data1, studres(model1)) -> new_data
+        ```
+
+        In practice, any observation in a dataset that has a studentized residual greater than an absolute value of 3 is an outlier.
+
+        ```{r}
+        new_data[which(new_data$`studres(model1)`>3)]
+        ```
+
+        ```{r echo=FALSE}
+        plot(new_data$temp, new_data$`studres(model1)`, ylab='Studentized residuals', xlab='temp'); abline(0,0)
+        ```
+
+        None of the observations have a studentized residual with an absolute value greater than 3, indicating there are no clear outliers in the dataset.
+
+    **Note.** Hence, although the residual vs leverage plot highlights the 3 most extreme points with standardized residuals whose absolute values are above 2, there is no outliers that exceed 3 standard deviations.
+
+    2.  Leverage
+
+        ```{r echo=FALSE}
+        new_data = cbind(data1, hatvalues(model1))
+        ```
+
+        We observe a data with high leverage (usually \> 2) if it has a high leverage value.
+
+        ```{r echo=FALSE}
+        hatvalues(model1)[order(hatvalues(model1)['hatvalues(model)'])]
+        ```
+
+        The largest leverage value is 0.05, this is way smaller than 2, indicating that none of the observations in our dataset have high leverage.
+
+**Ans. Data shows a linear trend, but curvature seems to appear in model1.**
+
+### *ii.* Observations in successive years may be correlated. Fit a model and estimates this correlation. Linear trend?
+
+-   Check for correlated errors
+
+```{r echo=FALSE}
+par(mfrow=c(1,3))
+plot(year, model1$residuals)
+plot(model1$residuals[-nrow(data1)], model1$residuals[-1], xlab='epsilon t', ylab='epsilon t+1'); acf(temp, lag=115, pl=T)
+```
+
+-   The plot seems to displaying correlated errors.
+-   And the autocorrelation plot indicates that data has the highest correlation when lag=1.
+-   DW test.
+
+```{r echo=FALSE}
+dwtest(model1)
+```
+
+-   The p-value=0.015, when the significance level of $\alpha\ is\ 0.05$, we have enough evidence to reject the null hypothesis, that is, correlated errors exist in the data.
+
+-   Assuming the correlated errors follow the autocorrelation structure of order 1.
+
+```{r}
+model2 = gls(temp~year, correlation=corAR1(form=~year))
+
+summary(model2)
+intervals(model2, which='var-cov')
+```
+
+-   $\epsilon_{t+1} = \rho*\epsilon_{t}+\delta_t$,
+
+-   $\delta_t$ \~ $N(0, \sigma^2)$
+
+-   So, under the AR(1) assumption, the estimate of correlation $\rho$ is 0.19.
+
+-   After calculating C.I. of parameters for $\rho$, we can see that $\rho$'s confidence interval do contain 0, that is to say, $\rho$ is significantly different from 0.
+
+### *iii.* Fit a polynomial model with degree 10 and use backward elimination to reduce the degree of the model. Plot your fitted model on top of the data. Use this model to predict the temperature in 2020.
+
+-   Fit a $10^{th}-order$ polynomial model.
+
+```{r}
+mean(year)
+model10 = lm(temp~poly(year, degree=10))
+model9 = lm(temp~poly(year, degree=9))
+model8 = lm(temp~poly(year, degree=8))
+model7 = lm(temp~poly(year, degree=7))
+model6 = lm(temp~poly(year, degree=6))
+model5 = lm(temp~poly(year, degree=5), data=data1)
+model4 = lm(temp~poly(year, degree=4))
+model3 = lm(temp~poly(year, degree=3))
+model2 = lm(temp~poly(year, degree=2))
+model1 = lm(temp~year)
+```
+
+```{r}
+summary(model10)
+summary(model9)
+summary(model8)
+summary(model7)
+summary(model6)
+summary(model5)
+summary(model4)
+summary(model3)
+summary(model2)
+summary(model1)
+```
+
+-   Seems like model5 is the highest polynomial model.
+
+-   Plotting fitted model5.
+
+    ```{r echo=FALSE}
+    plot(temp~year); points(year, fitted(model5), col='red', pch=20)
+    ```
+
+**Predicting data=2020**
+
+```{r echo=FALSE}
+predict(model5, newdata=data.frame(seq(2020:2134)))[1]
+```
+
+-   47.81
+
+### *iv.* Suppose *temp* was constant until 1930 and then began a linear trend. Fit a model correspond to the claim. What does the fitted model tell?
+
+```{r}
+model1 = lm(temp~year, subset = (year<1930))
+model2 = lm(temp~year, subset=year>=1930)
+
+par(mfrow=c(2,2))
+summary(model1)
+plot(model1)
+```
+
+```{r echo=FALSE}
+plot(temp~year); abline(v=1930, lwd=2, lty=6)
+lhs <- function(x)ifelse(x<=1930, 1930-x, 0)
+rhs <- function(x)ifelse(x>1930, x-1930, 0)
+
+model3 = lm(temp~lhs(year)+rhs(year))
+
+x = seq(1854, 2000)
+
+model4 = model3$coefficients[1]+model3$coefficients[2]*lhs(x)+model3$coefficients[3]*rhs(x)
+lines(x, model4, lty=2)
+```
+
+```{r echo=FALSE}
+plot(temp~year); abline(v=1930, lwd=2, lty=6)
+lhs <- function(x)ifelse(x<=1930, mean(data1$temp), 0)
+rhs <- function(x)ifelse(x>1930, x-1930, 0)
+
+model3 = lm(temp~lhs(year)+rhs(year))
+
+x = seq(1854, 2000)
+
+model4 = model3$coefficients[1]+model3$coefficients[2]*lhs(x)+model3$coefficients[3]*rhs(x)
+lines(x, model4, lty=2)
+```
+
+### v. Make a cubic spline fit with 6 basis functions evenly spaced on the range. Visualize this basis functions. Plot the fit in comparison to the previous fits. Does this model fit better than the straight line model?
+
+```{r echo=FALSE}
+require(splines)
+```
+
+```{r echo=FALSE}
+knots = c(1850, 1850, 1850, 1850, 1900, 1950, 2000, 2000, 2000, 2000)
+b_year = splineDesign(knots, year)
+model6 = lm(temp~b_year-1)
+matplot(year, b_year, type="l", col=1)
+
+matplot(year, cbind(temp, model6$fitted.values), type='pl', ylab='year', pch=20, lty=1, col=2);abline(model1, col='blue')
+```
+
+```{r echo=FALSE}
+plot(model5, which=1)
+```
+
+-   As we can observe from the plot, by complicating the model, we ameliorate the effect of curvature.
+
+-   Fits better
+
+```{r echo=FALSE}
+detach(data1)
+```
+
+## Problem 2
+
+### Data Overview
+
+```{r echo=FALSE}
+data2 = readxl::read_xlsx('./datasets/E1.20.xlsx')
+attach(data2)
+```
+
+```{r}
+summary(data2)
+ggpairs(data2)
+```
+
+```{r echo=FALSE}
+plot(data2$`PQLI-Score`, data2$`Combined-IMR`)
+```
+
+-   they seems to have a strong negative correlation.
+
+### Construct a single model, using dummy variables to distinguish rural-urban and male-female difference. Investigate whether there is a male-female and rural-urban difference in IMR after adjusting for other covariates.
+
+-   Construct new data, setting dummy variables for gender and location.
+
+-   Gender: 0=male; 1=female
+
+-   Rural: 0=rural; 1=urban
+
+```{r echo=FALSE}
+# male = 0
+# rural = 0
+
+newstate = rep(State, 4)
+newScore = rep(`PQLI-Score`, 4)
+newIMR = rep(`Combined-IMR`, 4)
+newScore = as.numeric(newScore)
+
+
+gender = rep(rep(c(-1, 1), c(nrow(data2), nrow(data2))), 2)
+gender = as.numeric(gender)
+
+rural = rep(c(-1,1), each=nrow(data2)*2)
+
+data = c(`Male-IMR(rural)`, `Female-IMR(rural)`, `Male-IMR(urban)`, `Female-IMR(urban)`)
+
+newdata2 = data.frame(cbind(newstate, newScore, newIMR, gender, rural, data))
+
+knitr::kable(head(newdata2))
+```
+
+```{r echo=FALSE}
+detach(data2)
+attach(newdata2)
+```
+
+**Construct single model**
+
+```{r}
+model1 = lm(data~newScore+gender+rural+newScore:gender+newScore:rural+gender:rural)
+
+summary(model1)
+```
+
+-   *p-value of newScore, rural, and interaction term between newScore and rural are significant.*
+
+    -   $C=c1: \mu=E(data|d_1=-1, d_2=1) = (\beta_0-\beta_2+\beta_3-\beta_6)+(\beta_1-\beta_4+\beta_5)x$
+
+    -   $C=c2: \mu=E(data|d_1=-1, d_2=-1) = (\beta_0-\beta_2-\beta_3+\beta_6)+(\beta_1-\beta_4-\beta_5)x$
+
+    -   $C=c3: \mu=E(data|d_1=1, d_2=1) = (\beta_0+\beta_2+\beta_3+\beta_6)+(\beta_1+\beta_4+\beta_5)x$
+
+    -   $C=c4: \mu=E(data|d_1=1, d_2=-1) = (\beta_0+\beta_2-\beta_3-\beta_6)+(\beta_1+\beta_4-\beta_5)x$
+
+    -   Constant terms, d1, d2 are orthogonal when there are equal number of observations in each categories.
+
+-   Forward Filtering
+
+```{r}
+model1 = lm(data~newScore)
+summary(model1)
+model2 = lm(data~newScore+I(rural))
+summary(model2)
+model3 = lm(data~newScore+I(rural)+newScore:rural)
+summary(model3)
+```
+
+-   Add rural variable.
+
+```{r}
+model4 = lm(data~newScore+I(rural)+newScore:rural+I(gender))
+summary(model4)
+model5 = lm(data~newScore+I(rural)+newScore:rural+newScore:gender)
+summary(model5)
+```
+
+As we can see, neither gender nor the interaction term, newScore:gender are significant to the model.
+
+-   Backward Filtering
+
+-   Full model: $IMR = \beta_0+\beta_1*newScore+\beta_2*gender+\beta_3*rural+\beta_4*newScore*gender+\beta_5*newScore*rural+\beta_6*gender*rural+\epsilon$
+
+```{r}
+model2 = lm(data~newScore+gender+rural+newScore:gender+newScore:rural+gender:rural)
+summary(model2)
+```
+
+-   Removing elements with least significant p-value from the model.
+
+-   Tried removing newScore:gender
+
+```{r}
+model3 = lm(data~newScore+I(gender)+I(rural)+newScore:rural+gender:rural)
+
+summary(model3)
+anova(model3, model2)
+```
+
+-   First remove *gender:rural* to see if it affect gender's parameter.
+
+```{r}
+model4= lm(data~newScore+I(gender)+I(rural)+newScore:rural)
+summary(model4)
+```
+
+-   Gender is still not significant.
+
+-   Removing Gender
+
+```{r}
+model5 = lm(data~newScore+I(rural)+newScore:rural)
+summary(model5)
+```
+
+-   To sum up, the conclusion drawn by the backward approach corresponded to the forward method, that is, location was significant while gender was not.
+
+```{r echo=FALSE}
+detach(newdata2)
+```
+
+## Problem 3
+
+### Data Overview
+
+```{r echo=FALSE}
+cornnit = read.table('./datasets/cornnit.txt', header=T)
+summary(cornnit)
+ggpairs(cornnit)
+attach(cornnit)
+```
+
+### Use transformations to find a good model for predicting yield from nitrogen. Use goodness of fit to check your model.
+
+```{r}
+model1 = lm(yield~nitrogen)
+summary(model1)
+```
+
+-   No outier
+
+-   Check for the assumption of constant variance.
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+-   Curvature and non-constant variance formal test
+
+```{r}
+ncvTest(model1)
+```
+
+-   p-value=0.17, which is larger than the significance level of 0.05, we do not have enough evidence to reject the null hypothesis, that is, this model does not violate the assumption of constant variance.
+
+```{r echo=FALSE}
+prplot(model1,1);lines(lowess(x=cornnit[,1],y=model1$residuals+model1$coeff[2]*cornnit[,1],f=0.8), col="red") 
+```
+
+-   Boxcox
+
+```{r}
+boxcox(model1, seq(1,5))
+```
+
+-   Not only lambda value and confidence interval did not include value1, but prplot shows quadratic effect, so we do need to perform power transform the predictors or response, hence I decided to preform power transformation on response and log transformation to the variable in the model.
+
+-   Since there were several 0 in nitrogen data, I added 1 in order to perform log transformation.
+
+```{r echo=FALSE}
+newyield = yield^2
+model2 = lm(newyield~I(log(nitrogen+1)))
+
+prplot(model2, 1)
+
+par(mfrow=c(2,2))
+plot(model2)
+```
+
+-   mean curvature no longer exists in variable `nitrogen`.
+
+-   Residual plot became flatter as well.
+
+```{r}
+boxcox(model2, seq(0,2))
+```
+
+-   Value 1 was now lying in the C.I. range of lambda.
+
+-   No further transformation is required.
+
+```{r}
+summary(model1); summary(model2)
+```
+
+-   By simply transforming the predictor and response, we enhance $R^2$ to about 70%.
+
+```{r echo=FALSE}
+detach(cornnit)
+```

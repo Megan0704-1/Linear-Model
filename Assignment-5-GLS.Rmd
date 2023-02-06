@@ -1,0 +1,403 @@
+---
+title: "Assignment 5"
+author: '108048110'
+date: "2022-11-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+library(GGally)
+library(nlme)
+```
+
+## Q1. Predicting the height of the son from the height of the father.
+
+```{r echo=FALSE}
+height = read.table('datasets/height.txt', header=T)
+summary(height)
+```
+
+-   The father's heights were rounded to the nearest inch.
+
+-   The average height of the son for fathers of that height is given.
+
+-   The number of fathers in each category is given.
+
+```{r echo=FALSE}
+attach(height)
+x = cbind(rep(1, nrow(height)), FatherH)
+y = SonmeanH
+```
+
+### *i.* Construct a linear regression model for predicting the height of the son from the height of the father in the best manner given information available.
+
+-   There are several observations given a single value of $x$, therefore, I will use the generalized least square to compute the weights of each predictor to estimate the parameters for the rest of the questions.
+
+-   Since the observed responses $y_i's$ are actually averages of several observations `number of fathers`, we set the wight as the number of observations.
+
+#### Hard Coding Ver
+
+-   Constructing $\Sigma$ and $\Sigma^{-1}$ first.
+
+```{r echo=FALSE}
+Sig = diag(12)
+Sig[Sig==1] = 1/NumofFather
+Sigi = solve(Sig)
+```
+
+```{r echo=FALSE}
+Sig
+```
+
+-   Since $w_i's$ is proportion to $1/var(\epsilon)$
+
+```{r echo=FALSE}
+Sigi
+```
+
+-   $S=diag(1/{\sqrt w_1}, 1/{\sqrt w_2}, ...)$, then $\Sigma = SS^T$.
+
+```{r echo=FALSE}
+S = chol(Sig)
+Si = solve(S)
+sx = Si%*%x
+sy = Si%*%y
+```
+
+-   Then we can use OLS to regress $S^{-1}Y$ on $S^{-1}X$.
+
+```{r}
+g = lm(sy~sx-1)
+summary(g, cor=T)
+```
+
+#### Wighted Least Square ver
+
+-   $w_i = n_i$, $S^{-1} = \sqrt(w_i)$
+
+```{r}
+Sigi = sqrt(NumofFather)
+g1 = lm(SonmeanH~FatherH, weights = NumofFather)
+summary(g1, cor=T)
+```
+
+-   Though the result seems indifference; however, the latter method included intercept in the model, therefore, its calculated $R^2$ value will be more vigorous compared to the former hard coding approach.
+
+```{r echo=FALSE}
+plot(FatherH, g1$res, cex=2, main='residual plot')
+abline(0,0)
+```
+
+### *ii.* Can the model be simplified to $Son\ height =\ father\ height+\epsilon$?
+
+-   Can we predict the son's height based on the father's height?
+-   $H_0: yes\ ;\  H_1: no$
+-   Try fitting the regression without weights first.
+-   Since the estimated parameters for $\beta_0$ is 1, we regarded father height as offset.
+
+```{r}
+g2 = lm(SonmeanH~offset(FatherH)-1, weights = NumofFather)
+summary(g2)
+```
+
+-   Comparing two fits.
+
+    -   Solid line: fitted line of model with the calculated weights.
+
+    -   Dash line: the simplified model with the height of the father to be the only predictor.
+
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(FatherH, g1$res, main="with weight model resiudual")
+abline(0,0)
+plot(FatherH, g2$res, main="without weight model resiudual")
+abline(0,0)
+
+anova(g1, g2)
+```
+
+-   Comparing their residual variance to test if the given model good enough for the prediction.
+-   the F-statistics with the null hypothesis to be "there isn't much different between two models", and the alternative hypothesis to be "there is a significance difference between two models."
+
+```{r echo=FALSE}
+ts = 10*1.783^2
+ts
+
+1-pchisq(ts, 10)
+```
+
+-   The p-value larger than the significance level indicates that we reject the null hypothesis, that is, the model can not be simplified.
+
+```{r echo=FALSE}
+detach(height)
+```
+
+## Q2. Ultrasonic measurements of the depths of defects in the Alaska pipeline in the field and in the lab.
+
+```{r echo=FALSE}
+data1 = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/pipeline.txt', header=T)
+attach(data1)
+```
+
+-   Take a look at the data
+
+```{r echo=FALSE}
+summary(data1)
+```
+
+```{r echo=FALSE}
+knitr::kable(table(Batch))
+```
+
+-   Batch effect is not significant and can be ignored.
+
+-   Lab measurements are more accurate than that of measured in the field.
+
+### *i.* Fit a regression model Lab\~Field. And check for non-constant variance.
+
+```{r}
+g = lm(Lab~Field)
+summary(g)
+```
+
+```{r echo=FALSE}
+plot(Lab, Field)
+```
+
+-   It is obvious in the plot that the variance is not constant.
+
+-   Also, there are replicate measurements in this dataset.
+
+```{r echo=FALSE}
+knitr::kable(data1[Field==18,])
+```
+
+```{r echo=FALSE}
+plot(g, which=1)
+```
+
+-   We can see that the variability around 0 increases as we move further to the right with bigger fitted values.
+
+-   Hence, we can confidently conclude that the data does not have a constant variance.
+
+We can also use ***NCV-test*** to examine the property of non-constant variance.
+
+$H_0: error\ terms\ have\ constant\ variance\ ;\ H_1: error\ terms\ have\ non-constant\ variance.$
+
+```{r echo=FALSE}
+library(car)
+ncvTest(g)
+```
+
+-   As we can observe from the result, the p-value of NCV-test is small, under the circumstances of $\alpha=0.05$ significance level, we reject $H_0$, that is, the model has the non-constant variance.
+
+### *ii.* Use weights to account for the non-constant variance.
+
+> Suppose we assume that the variance in the response is linked to the predictor $var(Lab) = \alpha_0*Field^{\alpha_1}$.
+
+> Regress $log(var(Lab))$ on $log(mean(Field))$ to estimate $\alpha_0, \alpha_1$.
+
+> Use this to determine weights in a WLS fit of `Lab` on `Field`. Show the regression summary.
+
+-   Computation splitting the range of `Field` into 12 groups of size 9 except for the last group that has only 8 values.
+
+```{r include=FALSE}
+i <- order(Field)
+npipe = data1[i,]
+
+ff <- gl(12,9)[-108]# 12 groups with 9 values each
+
+# mean of field
+meanfield <- unlist(lapply(split(npipe$Field,ff),mean))
+
+# variance of lab
+varlab <- unlist(lapply(split(npipe$Lab,ff),var))
+
+# removing the last point
+meanfield = meanfield[-12]
+varlab = varlab[-12]
+```
+
+-   $log(var(Lab)) = log(\alpha_0)+\alpha_1log(Field)$
+
+```{r}
+g4 = lm(log(varlab)~log(meanfield))
+summary(g4)
+```
+
+-   $\alpha_0 = e^{-1.9352} = 0.1444,\ \alpha_1 = 1.6707$
+
+-   $var(Lab)=0.1444*Field^{1.6707}$
+
+-   $\sigma = \sqrt(0.1444) = 0.38,\ w_i = \frac{1}{\alpha_0*Field^{\alpha_1}}$
+
+```{r}
+w =  1/Field^(1.6707)
+g1 = lm(Lab~Field, weights = w)
+summary(g1)
+```
+
+```{r echo=FALSE}
+par(mfrow = c(1,2), mar = c(5,4,3,1))
+plot(g1, which = 1)
+plot(g1$fitted.values, g1$residuals*sqrt(w), main = "Residuals*sqrt(w) vs Fitted", xlab = "Fitted values", ylab = "Residuals * sqrt(w)")
+abline(a = 0, b = 0, lty = "dashed", col = "#c4c4c4")
+```
+
+-   As we can observe from the residual plot on the left, the residuals of the new model still become larger as the fitted values become larger.
+
+-   Multiply residuals by $\sqrt(weight)$ to get the result of Fitted value as shown on the right. It is observed that $residuals*\sqrt(weight)$ does not increase with the increase of fitted values, and the problem of non-constant variance is solved.
+
+-   Check on NCV-test
+
+```{r}
+ncvTest(g1)
+```
+
+```{r echo=FALSE}
+detach(data1)
+```
+
+## Q3. This dataset provides the data on the outside diameter of crankpins produced by an industrial process.
+
+```{r echo=FALSE}
+data2 = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/crank.txt', header=T)
+attach(data2)
+```
+
+-   All the crankpins should be between 0.7425 and 0.7430 inches.
+
+-   The number given in the table are in units of 0.00001 inches deviation from 0.742 inches.
+
+```{r}
+summary(data2)
+```
+
+-   So the actual outside diameter of crankpins ranges from 0.74272 to 0.743 inches.
+
+-   Under control, the average size of the crankpin produced should...
+
+    1.  fall near the middle of the specified range
+    2.  not depend on the time.
+
+-   Fit an appropriate model to see of the process is under control and test for lack of fit in the model.
+
+```{r}
+plot(day,diameter,xlab="day",ylab="diameter") 
+abline(h=0.74275,col=8)
+abline(h=0.743,col=8,lty=2)
+```
+
+### Under control test
+
+-   $H_1: g1=not\ under\ control$
+
+```{r echo=FALSE}
+g = lm(diameter~1)
+```
+
+-   This is a dataset with replicate values, which show a pattern of unequal variance.
+-   Calculate the sample variance.
+
+```{r echo=FALSE}
+dayvar = c()
+daymean = c()
+
+for(i in seq(1,22,3)){dayvar = c(dayvar, var(data2[day==i,]$diameter))}
+
+for(i in seq(1,22,3)){daymean = c(daymean, mean(data2[day==i,]$diameter))}
+```
+
+-   The data is obviously with inconsistent variation.
+
+-   Hence, we calculated weights as 1/sample variance.
+
+```{r echo=FALSE}
+w = 1/daymean
+knitr::kable(rbind(unique(day),rbind(dayvar, rbind(daymean, w))))
+data2['var'] = rep(dayvar, each=5)
+```
+
+-   Calculated $\Sigma$
+
+```{r echo=FALSE}
+#w = 1/data2['var']
+```
+
+-   Cholesky Decomposition and fit the model.
+
+```{r}
+S = chol(Sig)
+Si = solve(S)
+
+g1 = lm(daymean~unique(day), weights=w)
+summary(g1, cor=T)
+```
+
+```{r echo=FALSE}
+plot(day, diameter, main='H1: Not Under control', cex=2, ylim=c(70, 102))
+abline(g1)
+abline(h=(50+100)/2, col='red')
+```
+
+-   If the process is under control, the average size of the production diameter should fall within the range of 75 (50+100/2), and the result should not be affected by predictor, day.
+
+```{r echo=FALSE}
+data2['daymean'] = seq(1, nrow(data2), 1)
+plot(data2$daymean, data2$diameter)
+abline(h=75, col='blue')
+```
+
+```{r echo=FALSE}
+pred = predict(g1, data.frame(c(75, 0, 0, 0, 0, 0, 0, 0)))
+knitr::kable(pred)
+plot(day, diameter, ylim=c(50, 100))
+abline(h=75, col='blue')
+points(unique(day), pred, pch=17, cex=1)
+points(unique(day), daymean, col='red', pch=19, cex=1)
+```
+
+-   The red dots indicate the mean of each repetition observations, and the black triangular dots represent the mean prediction of model without considering day variable (which is the under control model.)
+
+```{r echo=FALSE}
+g = lm(daymean~1)
+anova(g, g1)
+```
+
+-   Since there is a significant difference between the null hypothesis model and the alternative hypothesis model, we conclude that we should reject the null hypothesis, that is, we do not have enough evidence to prove that the model is under control.
+
+### Test for lack of fit
+
+-   Saturated model
+
+```{r}
+g2 = lm(diameter~factor(day))
+summary(g2)
+```
+
+-   The saturated model has 8 parameters
+
+-   The residual standard error is 5.16, which is the pure error estimate of true $\sigma$.
+
+```{r echo=FALSE}
+plot(day, diameter)
+abline(g1, col='red')
+points(data2$day, g2$fitted.values, pch=17, cex=1)
+grid <- seq(1, 22, length=8); lines(grid, predict(g2, data.frame(day=grid)), lty=2)
+```
+
+```{r echo=FALSE}
+anova(g1, g2)
+```
+
+-   The p-value is above 0.05, we do not reject the null hypothesis that these is no lack of fit.
+
+```{r}
+detach(data2)
+```

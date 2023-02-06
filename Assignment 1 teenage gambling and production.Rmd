@@ -1,0 +1,402 @@
+---
+title: "HW1 (teenage_gamble and textile production)"
+author: '108048110'
+date: "2022-10-02"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Assignment 1
+
+You should present your results in summary format only with R outputs that are required to support your answers.
+
+## 1. [Britain Teenage Gambling data](http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/teengamb.txt)
+
+## a.
+
+This this a survey conducted to study teenage gambling behavior in Britain and the data contains 47 rows and 5 columns.
+
+```{r include=FALSE}
+teenageData = read.table(file='datasets/teenage.txt', header=TRUE)
+```
+
+> To see what variables we have and what sort of values they take.
+
+```{r echo=FALSE}
+head(teenageData)
+```
+
+| Items | Variables | Description                                             |
+|-------|-----------|---------------------------------------------------------|
+| 1     | Sex       | Gender, 0=male, 1=female                                |
+| 2     | Status    | Socioeconomic status score based on parents' occupation |
+| 3     | Income    | How much does a teen earn pounds per **week**           |
+| 4     | Verbal    | Verbal score in words out of 12 correctly defined       |
+| 5     | Gamble    | Teenagers spend on gambling pounds per **year**         |
+
+: Britain Teenage Gambling Data
+
+> Expect:
+>
+> 1.  **Sex** to be a qualitative nomial variable;
+> 2.  **Status** to be Quantitative Discrete variable;
+> 3.  **Income** to be Quantitative Continuous variable;
+> 4.  **Verbal** to be Quantitative Discrete variable;
+> 5.  **Gamble** to be Quantitative Continuous variable.
+
+> Get usual univariate summary info
+
+```{r echo=FALSE}
+summary(teenageData)
+```
+
+> Error entry check.
+>
+> -   Seems to have no missing values.
+
+```{r echo=FALSE}
+summary(is.na(teenageData))
+```
+
+### Variable1: Sex
+
+According to the data description provided, sex variable is categorized into to classes, **0** and **1** represents **male**\*\* and **female** respectively.
+
+> Since I expect sex to be qualitative nomial variable, I designated it as factors and use descriptive labels to presented them.
+>
+> -   There are 28 men and 19 women.
+> -   The researcher have more data from males than from females.
+
+```{r echo=FALSE}
+teenageData$sex = factor(teenageData$sex)
+levels(teenageData$sex) <- c('male', 'female')
+table(teenageData$sex)
+```
+
+> Sex ratio (from the Sociology perspective)
+
+```{r echo=FALSE}
+19/(47-19)
+```
+
+> Percentage Distribution of the variable.
+
+```{r echo=FALSE}
+table(teenageData$sex)/nrow(teenageData)
+```
+
+> Visualization
+
+```{r echo=FALSE}
+barplot(table(teenageData$sex), main="Distribution of gender")
+```
+
+### Variable2: Status
+
+Interesting about this variable, since the information about the purpose of the study and how the data were collected are not provided, and the data description only mentioned that variable ***status*** is a score based on a teenager's parents' occupation, I could only comment it by my intuitive perception.
+
+```{r echo=FALSE}
+par(mfrow=c(1, 2))
+hist(teenageData$status)
+plot(density(teenageData$status))
+```
+
+> Histogram might be misleading since people can easily manipulate the outcome by setting different bandwidth, thus I would consider a kernel density plot a better choice.
+
+```{r echo=FALSE}
+plot(sort(teenageData$status))
+```
+
+> -   There is no obvious outliers lied in the plots.
+
+### Variable3: Income
+
+Apparently, the phrase "I earn twice more than you do." is hurtful when it is literally true, I would classified the variable as a quantitative ratio variable because the differences between samples have meanings.
+
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(density(teenageData$income),main="")
+
+boxplot(teenageData$income, horizontal = TRUE)
+stripchart(teenageData$income, method='stack', add=TRUE)
+```
+
+-   It seems that someone earned a lot. Lets dig in.
+
+```{r echo=FALSE}
+plot(sort(teenageData$income))
+```
+
+> I'd like to analyze the relationships between income and gambling, but two variables are recorded with distinct units. So I unified the units of income (pounds/week) to (pounds/year) by multiplying it by 52. (weeks/year)
+>
+> -   Though it didn't seem much different, the range between them actually are larger.
+
+```{r echo=FALSE}
+yearlyIncome = teenageData$income*52
+plot(sort(yearlyIncome))
+```
+
+> Curious about how gender is related to income, I visualized it and found that in the data, average female income do seem less than male.
+
+```{r echo=FALSE}
+plot(yearlyIncome~teenageData$sex)
+```
+
+> And the relationships between gamble and income.
+>
+> -   Seems like these teenagers had good capability of self-controlling. They did not spent all of their money on gambling, good kids.
+
+```{r echo=FALSE}
+plot(yearlyIncome~teenageData$gamble)
+abline(a=1, b=1)
+```
+
+### Variable4: Verbal
+
+Since verbal score were calculated by how many words a teenager can correctly define, they are assuredly discrete values.
+
+```{r echo=FALSE}
+table(teenageData$verbal)
+```
+
+> Designated and gave it descriptive labels.
+
+```{r echo=FALSE}
+teenageData$verbal = factor(teenageData$verbal)
+
+barplot(table(teenageData$verbal), main="Distribution of verbal")
+```
+
+> See if knowing more words can bring to higher social status or higher social status means inferring teens recognized more words.
+>
+> -   They might have some association relationships.
+> -   But it seems that higher social status mostly are related to higher verbal scores.
+
+```{r echo=FALSE}
+plot(status~verbal, teenageData, main="Verbal vs. Parents' occupation")
+```
+
+> See if knowing more words means that you earn more.
+>
+> -   Weirdly, I expect that students memorizing more vocabularies would result in higher income, but it seems quite the opposite.
+>
+> -   Though the blank on the top left corner may indicate that if a teen wanted a job with better salary, he would need to work harder in school.
+
+```{r echo=FALSE}
+plot(yearlyIncome~teenageData$verbal, main="Verbal vs. Income (yearly)")
+```
+
+### Variable5: Gamble
+
+The variable described how much teens spend on gambling.
+
+Similar to income, we can tell the differences between the gambling expenses, thus it is a quantitative ratio variable.
+
+> -   Several teens showed serious gambling behaviors.
+
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(density(teenageData$gamble), main="")
+boxplot(teenageData$gamble, horizontal=TRUE)
+stripchart(teenageData$gamble, method='stack', add=TRUE)
+```
+
+> Additionally, I found that on average, men spent more money on gambling than women!
+
+```{r echo=FALSE}
+plot(gamble~sex, teenageData)
+```
+
+### Giving numerical and graphical summaries
+
+```{r echo=FALSE}
+teenageData$yearly_income = yearlyIncome
+summary(teenageData)
+plot(teenageData)
+```
+
+## b.
+
+I think it is an observational data because the collection of the data seems random and it seems that no researchers are controlling the potential variate that can have an impact on the subject in the study. Since no treatment is imposed, I would consider the data observational.
+
+## 2. [Textile Production data](http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/wrinkle.txt)
+
+This is a data about research on textile production.
+
+> Textile production is the process by which fibers, filaments, yarn, and thread - both natural and synthetic - are made.
+
+```{r echo=FALSE}
+textile = read.table(file="datasets/production.txt", header=TRUE)
+```
+
+## a.
+
+> To see what variables we have and what sort of values they take.
+
+```{r echo=FALSE}
+head(textile)
+```
+
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Items | Variables      | Description                                                                                                                                                                                                                                                                       |
++=======+================+===================================================================================================================================================================================================================================================================================+
+| 1     | Press          | Durable press ratings, it is used for cotton fabrics or textiles with high content of cellulosic fibers.                                                                                                                                                                          |
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 2     | HCHO           | formaldehyde concentration, which, in general, are limited to 30 ppm for clothing worn by toddlers.                                                                                                                                                                               |
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 3     | Catalyst Ratio | Catalysts mediate between the reagents in a chemical reaction and control the process leading to the desired end product. When textile material is used as a support for the chemical auxiliaries, the reaction can proceed on a large surface thereby increasing its efficiency. |
+|       |                |                                                                                                                                                                                                                                                                                   |
+|       |                | In terms of efficiency, 1% is considered slow mix, 2% is ideal and 3% is a fast mix.                                                                                                                                                                                              |
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 4     | Temperature    | Curing temperature, measured in °F                                                                                                                                                                                                                                                |
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 5     | Time           | Curing time                                                                                                                                                                                                                                                                       |
++-------+----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+: Textile Production Data
+
+> Expect:
+>
+> 1.  **Press** **Ratings** to be a Quantitative Discrete variable;
+> 2.  **HCHO** to be a Quantitative Continuous variable;
+> 3.  **Catalyst Ratio** to be a Quantitative Continuous variable;
+> 4.  **Temp** to be a Quantitative Continuous variable;
+> 5.  **Time** to be a Quantitative Continuous variable.
+
+> To be able to analyze on the data and its context, we should find out how the data is collected and whether it is representative, but since the information is not available, I would skip this step.
+
+### Variable1: press
+
+This variable describes the durable press rating on textiles, intuitively, I believed that ratings are discrete data.
+
+```{r echo=FALSE}
+table(textile$press)
+```
+
+> Visualize
+
+```{r echo=FALSE}
+barplot(table(textile$press))
+```
+
+> However, I found myself overlooking the possibility that this was an experimental dataset, thus I conjectured that this variable may be continuous and be the *response* of the research.
+>
+> -   So it is better to visualize it by density plots.
+>
+> -   blue: mean; red: median
+
+```{r echo=FALSE}
+plot(density(textile$press), main="Distribution of textile durable press")
+abline(v=mean(textile$press), col='blue')
+abline(v=median(textile$press), col="red")
+```
+
+> Something weird happens, There is an obvious break between pressure. See if any of the following analysis on variables can explain this gap.
+
+```{r echo=FALSE}
+plot(sort(textile$press))
+```
+
+### Variable2: HCHO
+
+HCHO is chemical composition, it records the formaldehyde concentration.
+
+```{r echo=FALSE}
+table(textile$HCHO)
+```
+
+> Intuitively, I thought concentration data must be numerical, quantitative ratio data. As the visualization showed, this distribution may be the result of certain control over concentration level.
+
+```{r echo=FALSE}
+barplot(table(textile$HCHO), main="Distribution of concentration level")
+```
+
+> Does HCHO has an impact on the gap between the durable pressure?
+>
+> -   From observation, there is durable pressure values do not lie between 3\~4 after HCHO concentration level raises above 2 ppm.
+
+```{r echo=FALSE}
+plot(textile$press, textile$HCHO)
+```
+
+### Variable3: Catalyst ratio
+
+Catalyst is used to accelerate the rate of chemical reaction, .
+
+```{r echo=FALSE}
+plot(sort(textile$catalyst))
+```
+
+> Distribution
+
+```{r echo=FALSE}
+table(textile$catalyst)
+
+barplot(table(textile$catalyst))
+```
+
+> I wonder how does the rate of certain chemical reaction has anything to do with durable pressure.
+>
+> -   Surprisingly, if I had more data I would have said it with more certainty, when the catalyst ratio rises above 4, durable pressure of textile suddenly enhanced and sustained the value between 4.5\~5 when the catalyst ratio are between 6 to 12. While the value of 3.25 where catalyst ratio is about 12 might be an outlier; however, I would need more data to confirm my suspicion.
+>
+> -   Respond to the previous question, catalyst ratio might be the main reason affecting textile's durable pressure.
+
+```{r echo=FALSE}
+plot(textile$press, textile$catalyst)
+```
+
+### Variable4: Temp
+
+Curing temperature may be related to curing time.
+
+Temperatures range from 100 to 140 and are measured in Fahrenheit. While in Taiwan, we used to measured temperature by Celsius, the data can be modified.
+
+$$
+Celsius = {(Fahrenheit-32)*5}/9
+$$
+
+```{r echo=FALSE}
+table(textile$temp)
+
+barplot(table(textile$temp))
+```
+
+> -   It seems quite random when I visualize the relationship betwen curing temperature with curing time.
+
+```{r echo=FALSE}
+plot(textile$temp, textile$time)
+```
+
+### Variable5: Time
+
+hmm... whether the ***time*** variable is measured in minutes, hours or seconds? We can not perform further analysis if the information is not sufficiently provided.
+
+```{r echo=FALSE}
+plot(sort(textile$time))
+```
+
+```{r echo=FALSE}
+table(textile$time)
+
+textile$time = factor(textile$time)
+
+barplot(table(textile$time))
+```
+
+### Giving numerical and graphical summaries
+
+```{r echo=FALSE}
+summary(textile)
+plot(textile)
+```
+
+> After giving some thought, I think the reason why many of these scatter plots showed such distribution (seems fairly random) is because a rigorous experiment should not include variables that are correlated with each other, the result which aims to identify which element is affecting textile's durable press might be misleading if curing temp is positively related to curing time.
+
+## b.
+
+In common sense, pressure rating, concentration level, temperature, or time should all be continuous data, so when I thought it was observational data, it seems really weird and counterintuitive to me then. But after reviewing some materials covered in class and observing patterns, I suddenly realize that this is not observational data!! And therefore, I can firmly state that this must be experimental data, while the research team of this study controlled most of the variables in order to evaluate outcomes under given environments and since the research output should be continuous, I surmised that it may be press, and the rest of the variables are predictors.

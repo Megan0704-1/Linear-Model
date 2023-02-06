@@ -1,0 +1,423 @@
+---
+title: "Homework-3"
+author: '108048110'
+date: "2022-10-31"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1.
+
+```{r include=FALSE}
+library(GGally)
+library(lmtest)
+```
+
+```{r include=FALSE}
+data1 = read.table('http://www.stat.nthu.edu.tw/~swcheng/Teaching/stat5410/data/uswagesall.txt', header=TRUE)
+```
+
+This data was drawn as a sample from the Current Population Survey in 1988.
+
+-   $wage$: weekly wages in dollars.
+
+-   $educ$: Years of education.
+
+-   $exper$: Years of experience.
+
+-   $race$: 1=black; 0=white (other races are dropped)
+
+-   $smsa$: 1=living in SMS area; 0=not
+
+-   $ne$: 1=living in the North East
+
+-   $mw$: 1= living in the Midwest
+
+-   $so$: 1=living in the South
+
+-   $pt$: 1=working part time; 0=not
+
+```{r}
+summary(data1)
+```
+
+-   There is a negative min in the predictor variable $exper$, which is not reasonable, so I look into the negative observations.
+
+```{r echo=FALSE}
+nrow(data1[data1$exper<0, ])
+```
+
+-   There are 438 record that should be resurveyed, and the negative values range from -4 to -1. Since there is no way to conducted the questionnaire again, I would remove these rows.
+
+```{r}
+data1 = data1[data1$exper>=0,]
+attach(data1)
+```
+
+```{r}
+summary(data1)
+```
+
+```{r echo=FALSE}
+cont = data.frame(wage, educ, exper)
+disc = data.frame(race, smsa, ne, mw, so, pt)
+
+ggpairs(cont, lower=list(continuous='cor', discrete='count'), upper = list(continuous='points', discrete='facetbar'))
+ggpairs(disc, lower=list(continuous='cor', discrete='count'), upper = list(continuous='points', discrete='facetbar'))
+```
+
+-   $race, smsa, ne, mw, s0, pt$ are qualitative variables, $smsa,mw,s0$ has little correlation associated with $pt$; while $mw$ is the only variable that seems not to be significance to $wage$.
+
+-   $wage, educ, exper$ are quantitative variables, $wage$ and $educ$ appear to be positively correlated, the trend can also been deduced by observing the scatter plot; while $wage$ and $exper$ seem to be negatively correlated, but it's relatively unclear when looking at the scatter plot. It is worth noting that $exper$ and $educ$ seems to have a normally distributed variance.
+
+-   None of the correlation values between variables are bigger than 0.5.
+
+-   As we can observe from the scatter plots, the distribution of $wage, exper, race, ne, mw, so, we, pt$ are right skewed; yet the distribution of $educ, smsa$ are left skewed.
+
+### a. Fit a model with $wage$ as response and $educ, exper$ as predictors. Report `test statistics` and `p-values` for the following tests.
+
+$$
+Model\ 1 :\ wage = \beta_0+\beta_1*educ + \beta_2*exper + \epsilon
+$$
+
+```{r echo=FALSE}
+model1 = lm(wage~educ+exper)
+smodel1 = summary(model1)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+$$
+RSS_{\Omega}=411.725
+$$ $$
+dim(\Omega)=3\ ;\ df(\Omega)=27714
+$$
+
+-   $R^2=0.1743$, indicating that only 17.43% of the $wage$ variation is interpreted by the model, there may be important explanatory variables that have not been included.
+
+-   All two variables seemed to have significant fitting results, which is consistent with the EDA graphical observation and correlation coefficient results.
+
+#### *i.* Neither $educ$ nor $exper$ have predictive value for $wage$.
+
+$$
+\beta_1 = \beta_2 = 0$$ $$
+True\ model: wage = \beta_0 + \beta_1*educ + \beta_2*exper+\epsilon$$ $$
+Fitted\ model: wage = \beta_0 + \epsilon
+$$
+
+```{r echo=FALSE}
+lm1i=lm(wage~1)
+smodel1 = summary(lm1i)
+knitr::kable(smodel1$coefficients)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+$$RSS_{\omega} = 453.083$$ $$dim(\omega)=1\ ;\ df(\omega)=27716$$
+
+```{r echo=FALSE}
+anova(lm1i, model1)
+```
+
+-   Chi-squared test statistics is 5308.1,F test statistics is 2924.9. The corresponding p-value is very small, less than 0.05, so we reject the null hypothesis that $educ, exper$ should not be removed from the full model at the same time.
+
+#### *ii.* $educ$ has no predictive value for $wage$ when $exper$ is included in the model.
+
+$$
+H_0 :\ \beta_1=0$$ $$
+True\ model: wage = \beta_0+\beta_1*educ+\beta_2*exper+\epsilon$$ $$
+Fitted\ model:\ wage = \beta_0 + \beta_2*exper+\epsilon
+$$
+
+```{r echo=FALSE}
+lm1 = lm(wage~exper)
+smodel1 = summary(lm1)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+$$RSS_{\omega} = 445.7432$$ $$dim(\omega)=2\ ;\ df(\omega)=27715$$
+
+-   $R^2=0.03217$, this model has less interpretive ability comparing to the previous model.
+
+```{r echo=FALSE}
+lrtest(lm1, model1)
+anova(lm1, model1)
+```
+
+-   Chi-squared test statistics is 4401.8 and F test statistics is 4770. The corresponding p-value is still less than 0.05, so we reject the null hypothesis, which indicates that when $exper$ is included in the model, one should not remove $educ$ from the model.
+
+#### *iii.* $educ$ has no predictive value for $wage$ when $exper$ is `not` included in the model.
+
+$$\beta_1 = 0$$ $$
+True\ model: wage = \beta_0 + \beta_1*educ +\epsilon$$ $$Fitted\ model: wage = \beta_0+\epsilon$$
+
+```{r echo=FALSE}
+lm1ii = lm(wage~educ)
+smodel1 = summary(lm1ii)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+
+lrtest(lm1i, lm1ii)
+anova(lm1i, lm1ii)
+```
+
+-   Chi-squared test statistics is 2824.1 and F test statistics is 2972.8. The corresponding p-value is less than 0.05, so we reject the null hypothesis, which indicates that whether $exper$ is included in the true model or not, one should not remove $educ$ from the fitted model, and that $educ$ may be an important variable for predicting wages.
+
+### b. For the model of question a, give the predicted effect of 1 additional year of experience.
+
+$$
+Fitted\ model :\ wage = \beta_0+\beta_1*educ + \beta_2*(exper+1) + \epsilon
+$$
+
+```{r echo=FALSE}
+lm1ii = lm(wage~educ+(exper+1))
+smodel1 = summary(lm1ii)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+-   Looks the same as the model of question a. The two models basically provide the same prediction results regardless of the offset value given to the variable $exper$.
+
+### c. Fit a model with the log of weekly wages as the response and years of education and experience as predictors.
+
+$$
+Model\ 2: log(wages) = \beta_0+\beta_1*educ+\beta_2*exper+\epsilon
+$$
+
+```{r echo=FALSE}
+model2 = lm(log(wage)~educ+exper)
+smodel1 = summary(model2)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(density(wage), main="Model1 response")
+abline(v=mean(wage), col="blue", lty=2)
+plot(density(log(wage)), main="Model2 response")
+abline(v=mean(log(wage)), col="blue", lty=2)
+```
+
+-   It's like standardizing the residuals.
+
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(density(model1$residuals),main="Model1 residuals")
+abline(v=mean(model1$residuals), col="blue", lty=2)
+plot(density(model2$residuals), main="Model2 residuals")
+abline(v=mean(model2$residuals), col="blue", lty=2)
+```
+
+#### *i.* Can you use an F-test to compare *`Model 2`* to *`Model 1`*? Do the F-test or Explain why not.
+
+```{r echo=FALSE}
+smodel1 = summary(model1)
+smodel2 = summary(model2)
+
+show_result = data.frame(rbind(smodel1$coefficients[-1,], smodel2$coefficients[-1,]))
+rownames(show_result) <- c("Model 1 educ", "Model 1 exper", "Model 2 educ", "Model 2 exper")
+
+knitr::kable(show_result)
+
+show_result = data.frame(rbind(smodel1$fstatistic, smodel2$fstatistic))
+rownames(show_result) <- c("Model 1", "Model 2")
+
+knitr::kable(show_result)
+
+tmp1 = c(smodel1$sigma, smodel1$r.squared)
+tmp2 = c(smodel2$sigma, smodel2$r.squared)
+show_result = rbind(tmp1, tmp2)
+colnames(show_result) <- c("sigma", 'r squared')
+rownames(show_result) <- c("Model 1", "Model 2")
+knitr::kable(show_result)
+```
+
+$$
+Model\ 1: r^2=0.1742\ ;\ 
+Model\ 2: r^2=0.2095 
+$$
+
+-   No, I don't. Hypothesis testings provide conjectures to respond to the question, "Which of the model spaces is more adequate in describing the data?" , we use F-test to compare two competing regression models in their ability to "explain" the variance in the predictors.
+
+-   But taking log on the response variable does not make a model simpler. Furthermore, you can't compare to model predicting different things.
+
+-   As we can observe from the general form of F statistic below, $$
+    F = \frac{(RSS_{\omega}-RSS_{\Omega})/(df(\omega)-df(\Omega))}{RSS_{\Omega}/df(\Omega)}\\=\frac{(RSS_{\omega}-RSS_{\Omega})/(p-q)\sigma^2}{RSS_{\Omega}/(n-p)\sigma^2}$$ , since both models have the same number of parameters, the denominator would be zero, and the calculated value could then not be defined.
+
+#### *ii.* Is this a better fitting model than that of in question a? Explain
+
+```{r echo=FALSE}
+a_model = rbind(smodel1$sigma, smodel1$r.squared)
+c_model = rbind(smodel2$sigma, smodel2$r.squared)
+knitr::kable(data.frame(a_model, c_model))
+```
+
+-   Since if I calculated the test statistics as $\frac{RSS_{\omega}}{RSS_{\Omega}}$, the value is just the sum of squares of *`Model 2`* divided by the sum of squares of *`Model 1`* and I assumed that the model with the lower value for the SS will fit the data better because this number represent the total distance the model is from the true data points and this was minimized during the regression procedure.
+
+-   Based on the sum of squares and the testing results, I expect the result to indicate that *`Model 2`* is statistically better than *`Model 1`*.
+
+### d. For the model of question c, give the predicted effect of 1 additional year of experience.
+
+$$
+Model\ 3: log(wage) = \beta_0+\beta_1*educ+\beta_2*(exper+1)+\epsilon
+$$
+
+```{r echo=FALSE}
+model3 = lm(log(wage)~educ+(exper+1))
+smodel1 = summary(model3)
+knitr::kable(smodel1$coefficients)
+knitr::kable(smodel1$fstatistic)
+show_result = data.frame(smodel1$sigma, smodel1$r.squared)
+colnames(show_result) <- c("sigma", "r squared")
+knitr::kable(show_result)
+```
+
+-   Contrasted to *`Model 2`*, *`Model 3`* giving one additional year of experience to the parameter of the model does not change the predicted effect.
+
+### e. For the model of question c, test $\beta_1 = 0.1$
+
+$$
+Full\ model: log(wage) = \beta_0+\beta_1*educ+\beta_2*exper+\epsilon$$ $$
+H_0: \beta_1 = 0.1\ ;\ H_1:\beta_1\neq0.1$$ $$
+Fitted\ model: log(wage) = \beta_0 + 0.1*educ+\beta_2*exper+\epsilon
+$$
+
+```{r echo=FALSE}
+lm1ii = lm(log(wage)~offset(0.1*educ)+exper)
+
+smodel1 = summary(model1)
+smodel1i = summary(lm1ii)
+
+Full = c(smodel1$coefficients[3], smodel1$sigma, smodel1$r.squared)
+
+Fitted = c(smodel1i$coefficients[2], smodel1i$sigma, smodel1i$r.squared)
+lm1i = rbind(Full, Fitted)
+
+colnames(lm1i) <- c("exper","RSS", "R squared")
+
+knitr::kable(lm1i)
+```
+
+```{r}
+lrtest(lm1ii, model2)
+anova(lm1ii, model2)
+```
+
+-   From both likelihood ratio test and anova, I found out that the test statistics are all above the critical values, and the corresponding p-values are far above 0.05, which indicate that I should not reject the null hypothesis, that is, the parameter associated with $educ$ is fairly resonable.
+
+```{r echo=FALSE}
+detach(data1)
+```
+
+### f. Extract every 1000th row from the dataset and refit the model of question c.
+
+```{r}
+newdata <- data1[1000*(1:28), ]
+```
+
+```{r echo=FALSE}
+newdata = newdata[-nrow(newdata),]
+```
+
+-   Since we have accessed indicies that is above the size of the data, I remove the last row.
+
+#### *i.* Which fit has the higher $R^2$? Would a reduced data always have a higher or lower value than the full data?
+
+```{r echo=FALSE}
+model2 = lm(log(wage)~educ+exper, data=data1)
+model3 = lm(log(wage)~educ+exper, data = newdata)
+smodel2 = summary(model2)
+smodel3 = summary(model3)
+show_result = rbind(c(smodel2$sigma, smodel2$r.squared), c(smodel3$sigma, smodel3$r.squared))
+colnames(show_result) <- c("sigma" ,"r squared")
+rownames(show_result) <- c("Full data", "Reduced data")
+knitr::kable(show_result)
+```
+
+-   The reduced data has a higher value of $R^2$.
+
+-   No, a reduced data would not always result in a higher $R^2$ value than the full data, it largely depends on how you sampled your data. If the reduced data is randomly sampled from the full data, the data for each sample would be different, on the other hand, $R^2$ is a measure of regression model performance, which represents the proportion of variance in response variable $wage$ that can be explained from predictors $educ, exper$; therefore, every time one reduced data from full data by sampling, it give one different model matricies to interpret the response variable, accordingly, the full model's $R^2$ is conducted simply by taking average on all of these sampled interpretation results ($RSS_{\omega}$).
+
+-   In conclusion, the reduced-data's $R^2$ would varied along the full-data's $R^2$, not necessarily be higher or lower than 0.2095.
+
+#### *ii.* Which predictors are statistically significant in this reduced data version? Compare the result to the significant predictors in the full data version and explain why the two results are different.
+
+```{r echo=FALSE}
+show_result <- rbind(smodel2$coefficients,smodel3$coefficients)
+rownames(show_result) <- c("Full intercept", "Full educ", "Full exper","Reduced intercept", "Reduced educ", "Reduced exper")
+knitr::kable(show_result)
+```
+
+-   It is clear that only both of which predictors $educ\ and exper$ are not significant in the reduced-data model.
+
+-   Compare to the full data version model, where every predictors are significant to the response ($log(wage)$), the reduced data version of regression model suggested that $educ, exper$ are not significant to the response, that is to say, we can not use the estimated values that are obtained from this reduced version of data to infer something about the full data (population).
+
+-   In my opinion, I think there are two reasons why the reduced data generated different results comparing to the full model. First, the sample size of the reduced data is too small. There are 28155 rows of observations in the full data while in the $newdata$ there are only 28 observations, (and that do not even capture 1% of the full data) which is way too small to represent the original dataset. Secondly, the reduced data is not randomly sampled from the full data, it should be generated using simple random sampling in order to be representative enough of the full data. Thus, the result generated from the reduced data may be biased, and it might not be a good sample to reach any conclusion about the full data.
+
+```{r}
+newdata = data1[sample(nrow(data1), size=nrow(data1)*0.01),]
+model4 = lm(log(wage)~educ+exper, data = newdata)
+smodel4 = summary(model4)
+smodel4
+```
+
+-   This $newdata$ is now randomly sampled from the full data and have a size of (281, 10). As we can observe from the model's summary above, $educ, exper$ are both significant again in the $newdata$.
+
+------------------------------------------------------------------------
+
+## Problem 2
+
+-   A study of infant mortality.
+
+-   Response: Baby's birth wright
+
+-   Predictors: Age of the mother, whether the birth was out of wedlock, whether the mother smoked or took drugs during pregnancy, the amount of medical attention the mother had, the mother's income...
+
+-   $R^2=0.092$
+
+-   Predictors was all significant at $0.01$ significance level.
+
+> **Explain the significance of the study.**
+
+-   Significant at 1% means that every predictors' p-values are less than 0.01. And the lower the significance level (10% \> 5% \> 1%), the more conservative the statistical analysis and the more the data must diverge from the null hypothesis to be significant.
+
+-   A good $R^2$ value signifies that the model eplains a good proportion of the variability in the response variable; while a low $R^2$ value indicates that the model still have a great deal of unexplained variance.
+
+-   Correspondingly, the statistical significance indicates hat changes in the predictors correlate with shifts in the response variable.
+
+-   As a result, low p-value tells that one can be reasonably sure that the predictors do have an effect on the dependent variable. And **interpreting a regression coefficient that is statistically significant does not change based on the** $R^2$ **value.**
+
+> **Words for the obstetrician and possible reasons.**
+
+-   So, from the previous lectures we know that $R^2$ isn't the best measure to use when determining model's predictions are sufficiently large enough. Humans are hard to predict, it's okay to have a low $R^2$ value, the possible reasons why you had obtained such a low $R^2$ value may result from the noisiness nature of the predicted variable.
+
+-   Yet, the statistically significant between variables tells us that the knowing variables provide information about the response variable. Since you used many variables to fit the regression model, it would be easier to assess precision (rather than $R^2$ value) using prediction intervals, where a single new observation is likely to fall given values of the predictors that you had specified.
+
+-   As for what you can do about that low $R^2$ value, my suggestion is to add more predictors to your model, just keep in mind that for every study area there is an inherent amount of inexplicable variability, so certainly, you can force your regression model to fo past this issue and reach a high $R^2$ value but it comes at the cost of misleading regression coefficients and p-values.
+
+-   High variability around the regression line produces a lower $R^2$ value, and a low $R^2$ value may indicates that current predictors do not account for much of the variance in birth weight (underfit), and the predictors ending up with low p-values are due to the fact that regardless of other variables that may have an effect on birth weight, the mother's age, whether or not a mother took drugs, etc. babies' birth weights do tend to be affected by these variables.
+
+-   Therefore, to recapitulate, there is a statistically significant effect of current predictors on birth weight, but not enough predictors to conduct an accurate prediction.
